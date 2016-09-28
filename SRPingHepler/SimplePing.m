@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 #pragma mark * IPv4 and ICMPv4 On-The-Wire Format
 
@@ -298,7 +299,7 @@ static uint16_t in_cksum(const void *buffer, size_t bufferLen) {
     strongDelegate = self.delegate;
     if ( (bytesSent > 0) && (((NSUInteger) bytesSent) == packet.length) ) {
 
-        // Complete success.  Tell the client.
+        // Complete succests.  Tell the client.
 
         if ( (strongDelegate != nil) && [strongDelegate respondsToSelector:@selector(simplePing:didSendPacket:sequenceNumber:)] ) {
             [strongDelegate simplePing:self didSendPacket:packet sequenceNumber:self.nextSequenceNumber];
@@ -511,6 +512,11 @@ static uint16_t in_cksum(const void *buffer, size_t bufferLen) {
     
     addrLen = sizeof(addr);
     bytesRead = recvfrom(CFSocketGetNative(self.socket), buffer, kBufferSize, 0, (struct sockaddr *) &addr, &addrLen);
+    
+   char* ip_src = inet_ntoa(((struct sockaddr_in *)&addr)->sin_addr);
+    
+    NSString * ipArress = [NSString stringWithFormat:@"%c", ip_src];
+    
     err = 0;
     if (bytesRead < 0) {
         err = errno;
@@ -621,6 +627,17 @@ static void SocketReadCallback(CFSocketRef s, CFSocketCallBackType type, CFDataR
     if (err != 0) {
         [self didFailWithError:[NSError errorWithDomain:NSPOSIXErrorDomain code:err userInfo:nil]];
     } else {
+        
+        
+        int ttl = 3;
+        
+        setsockopt(fd, IPPROTO_IP, IP_TTL, (char *)&ttl, sizeof(ttl));
+        int nNetTimeout = 1000; //1秒
+        //发送时限
+        setsockopt( fd,SOL_SOCKET, SO_SNDTIMEO, ( char * )&nNetTimeout, sizeof( int ) );
+        //接收时限
+        setsockopt( fd, SOL_SOCKET, SO_RCVTIMEO, ( char * )&nNetTimeout, sizeof( int ) );
+        
         CFSocketContext         context = {0, (__bridge void *)(self), NULL, NULL, NULL};
         CFRunLoopSourceRef      rls;
         id<SimplePingDelegate>  strongDelegate;
